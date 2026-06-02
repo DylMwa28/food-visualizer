@@ -1,0 +1,30 @@
+food,density_g_per_cm3,packing_factor,category,color
+blueberries,0.59,0.64,berry,#4A90D9
+strawberries,0.58,0.60,berry,#E8334A
+raspberries,0.43,0.58,berry,#C0395A
+blackberries,0.53,0.61,berry,#4A235A
+grapes,0.67,0.65,fruit,#7D3C98
+cherries,0.71,0.63,fruit,#A93226
+almonds,0.61,0.62,nut,#C8A165
+cashews,0.58,0.63,nut,#D4B483
+walnuts,0.45,0.58,nut,#8B6340
+peanuts,0.67,0.65,nut,#C4A35A
+pistachios,0.53,0.60,nut,#8FAF5A
+pecans,0.44,0.57,nut,#A0724A
+baby carrots,0.64,0.68,vegetable,#E8762A
+cherry tomatoes,0.60,0.65,vegetable,#E84040
+broccoli florets,0.37,0.55,vegetable,#4A8A3A
+cucumber slices,0.55,0.70,vegetable,#6AAF4A
+celery,0.48,0.62,vegetable,#8ABF6A
+snap peas,0.42,0.64,vegetable,#5A9F3A
+rolled oats,0.43,0.78,grain,#D4B87A
+granola,0.38,0.72,grain,#C4A455
+brown rice cooked,0.82,0.82,grain,#C8B870
+quinoa cooked,0.79,0.80,grain,#D4C87A
+greek yogurt,1.05,1.00,dairy,#F0ECD8
+cottage cheese,0.97,1.00,dairy,#EDE8D5
+banana slices,0.69,0.75,fruit,#F5D020
+apple slices,0.56,0.72,fruit,#C8D850
+mango chunks,0.61,0.78,fruit,#F5A623
+pineapple chunks,0.54,0.76,fruit,#F5C518
+watermelon chunks,0.32,0.82,fruit,#E84A5A
