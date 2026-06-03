@@ -1,20 +1,18 @@
 import streamlit as st
 import pandas as pd
 import streamlit.components.v1 as components
+import random
 
-# ── Load data ──────────────────────────────────────────────────────────────────
 @st.cache_data
 def load_data():
     return pd.read_csv("data.csv")
 
 df = load_data()
 
-# ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Food Portion Visualizer", page_icon="🍓", layout="centered")
 st.title("🍓 Food Portion Visualizer")
 st.write("See exactly what your food looks like before you pour it.")
 
-# ── Inputs ─────────────────────────────────────────────────────────────────────
 food_options = df["food"].tolist()
 col1, col2 = st.columns(2)
 with col1:
@@ -22,7 +20,6 @@ with col1:
 with col2:
     grams = st.number_input("Amount in grams", min_value=1, max_value=2000, value=100, step=5)
 
-# ── Bowl size selector ─────────────────────────────────────────────────────────
 bowl_sizes = {
     "Small bowl (300ml)":  300,
     "Medium bowl (500ml)": 500,
@@ -33,7 +30,6 @@ st.divider()
 bowl_choice = st.radio("Bowl size", list(bowl_sizes.keys()), horizontal=True)
 bowl_volume  = bowl_sizes[bowl_choice]
 
-# ── Calculation ────────────────────────────────────────────────────────────────
 food_row     = df[df["food"] == selected_food].iloc[0]
 density      = food_row["density_g_per_cm3"]
 packing      = food_row["packing_factor"]
@@ -46,38 +42,8 @@ volume_cups  = volume_cm3 / 236.6
 fill_percent = min((volume_cm3 / bowl_volume) * 100, 100)
 overflowing  = volume_cm3 > bowl_volume
 
-# ── Bowl SVG ───────────────────────────────────────────────────────────────────
-def draw_bowl(fill_pct, food_col, food_name, category):
-    import random
+def draw_bowl(fill_pct, food_col, food_name, cat):
     random.seed(42)
-
-    # Canvas
-    W, H = 500, 300
-
-    # Bowl shape — wide at top, narrower flat base
-    top_y    = 40
-    base_y   = 240
-    top_left = 60
-    top_right= 440
-    base_left= 160
-    base_right=340
-    cx       = W / 2
-
-    bowl_h   = base_y - top_y        # 200px total interior height
-    fill_h   = bowl_h * (fill_pct / 100)
-    fill_y   = base_y - fill_h       # top of the food fill
-
-    # At any y between top_y and base_y, interpolate the left/right edges
-    def left_edge(y):
-        t = (y - top_y) / bowl_h
-        return top_left + t * (base_left - top_left)
-
-    def right_edge(y):
-        t = (y - top_y) / bowl_h
-        return top_right + t * (base_right - top_right)
-
-    fill_left  = left_edge(fill_y)
-    fill_right = right_edge(fill_y)
 
     def darken(hex_color, factor=0.72):
         h = hex_color.lstrip('#')
@@ -86,89 +52,100 @@ def draw_bowl(fill_pct, food_col, food_name, category):
 
     dark_col = darken(food_col)
 
-    # Texture dots scattered inside the food fill region
-    dots = ""
-    if category in ["berry","nut","fruit","grain","vegetable"] and fill_h > 15:
-        for _ in range(min(int(fill_h * 2.2), 90)):
-            dy     = random.uniform(fill_y + 4, base_y - 4)
-            lx     = left_edge(dy) + 6
-            rx     = right_edge(dy) - 6
-            if rx <= lx:
-                continue
-            dx     = random.uniform(lx, rx)
-            radius = random.uniform(3, 7)
-            op     = random.uniform(0.35, 0.8)
-            dots  += f'<circle cx="{dx:.1f}" cy="{dy:.1f}" r="{radius:.1f}" fill="{dark_col}" opacity="{op:.2f}"/>'
+    # Bowl is drawn using an HTML/CSS approach inside the SVG foreignObject
+    # so we get a real rounded bowl shape
+    fill_h_pct = fill_pct  # percentage height of food
 
-    # Food fill polygon
-    food_poly = ""
-    if fill_h > 2:
-        food_poly = f'''
-        <polygon points="
-          {fill_left:.1f},{fill_y:.1f}
-          {fill_right:.1f},{fill_y:.1f}
-          {base_right},{base_y}
-          {base_left},{base_y}"
-          fill="{food_col}" opacity="0.93"/>'''
+    # Generate dots as SVG circles positioned within a 300x180 area
+    dots_svg = ""
+    if cat in ["berry","nut","fruit","grain","vegetable"] and fill_pct > 8:
+        num_dots = min(int(fill_pct * 1.2), 80)
+        for _ in range(num_dots):
+            # Place dots in lower portion matching fill
+            dx = random.uniform(8, 292)
+            # dots go from bottom up to fill level
+            dy_min = 180 - (180 * fill_pct / 100) + 6
+            dy = random.uniform(dy_min, 174)
+            r  = random.uniform(3, 7)
+            op = random.uniform(0.3, 0.75)
+            dots_svg += f'<circle cx="{dx:.1f}" cy="{dy:.1f}" r="{r:.1f}" fill="{dark_col}" opacity="{op:.2f}"/>'
 
-    # Dashed fill line at top of food
-    fill_line = ""
-    if fill_h > 8:
-        fill_line = f'<line x1="{fill_left:.1f}" y1="{fill_y:.1f}" x2="{fill_right:.1f}" y2="{fill_y:.1f}" stroke="{dark_col}" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.55"/>'
+    overflow_text = "⚠ Overflows this bowl" if fill_pct >= 100 else ""
 
-    # Label inside food if enough room
-    label = ""
-    label_y = fill_y + fill_h / 2 + 5
-    if fill_h > 28:
-        label = f'<text x="{cx}" y="{label_y:.1f}" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="600" fill="white" opacity="0.9">{food_name}</text>'
+    html = f"""
+    <div style="display:flex; flex-direction:column; align-items:center; padding:20px 0; font-family:sans-serif;">
 
-    # Percent label to the right
-    pct_label = f'<text x="{fill_right + 10:.1f}" y="{fill_y + 4:.1f}" font-family="sans-serif" font-size="12" fill="#aaaaaa">{fill_pct:.0f}%</text>'
+      {"<p style='color:#ff5555; font-size:13px; margin:0 0 8px;'>⚠ Overflows this bowl</p>" if fill_pct >= 100 else ""}
 
-    # Overflow warning
-    overflow_txt = ""
-    if fill_pct >= 100:
-        overflow_txt = f'<text x="{cx}" y="28" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#ff5555">⚠ Overflows this bowl</text>'
+      <div style="position:relative; width:320px; height:200px;">
 
-    # Bowl outline — trapezoid wide-top correct orientation
-    bowl_outline = f'''
-      <polygon points="
-        {top_left},{top_y}
-        {top_right},{top_y}
-        {base_right},{base_y}
-        {base_left},{base_y}"
-        fill="none" stroke="#999999" stroke-width="2.5" stroke-linejoin="round"/>'''
+        <!-- Bowl shell using CSS clip and border-radius -->
+        <div style="
+          position:absolute;
+          bottom:0; left:0; right:0;
+          width:320px;
+          height:190px;
+          border: 3px solid #888;
+          border-top: none;
+          border-radius: 0 0 160px 160px / 0 0 80px 80px;
+          overflow:hidden;
+          box-sizing:border-box;
+          background: transparent;
+        ">
+          <!-- Food fill inside bowl -->
+          <div style="
+            position:absolute;
+            bottom:0; left:0; right:0;
+            height:{fill_pct:.1f}%;
+            background:{food_col};
+            opacity:0.92;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            overflow:hidden;
+          ">
+            <!-- Dots as inline SVG -->
+            <svg style="position:absolute;top:0;left:0;width:100%;height:100%"
+                 xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"
+                 viewBox="0 0 300 180">
+              {dots_svg}
+            </svg>
+            {"<span style='color:white;font-weight:600;font-size:13px;position:relative;z-index:1;text-shadow:0 1px 3px rgba(0,0,0,0.6)'>" + food_name + "</span>" if fill_pct > 15 else ""}
+          </div>
+        </div>
 
-    # Rim highlight
-    rim = f'<line x1="{top_left}" y1="{top_y}" x2="{top_right}" y2="{top_y}" stroke="#cccccc" stroke-width="4" stroke-linecap="round"/>'
+        <!-- Percent label -->
+        <div style="
+          position:absolute;
+          right:-44px;
+          bottom:{fill_pct * 1.7:.0f}px;
+          font-size:12px;
+          color:#aaa;
+        ">{fill_pct:.0f}%</div>
 
-    # Base line
-    base = f'<line x1="{base_left}" y1="{base_y}" x2="{base_right}" y2="{base_y}" stroke="#999999" stroke-width="3" stroke-linecap="round"/>'
+      </div>
 
-    # Inner bowl sheen (subtle highlight on left wall)
-    sheen = f'<line x1="{top_left + 18}" y1="{top_y + 10}" x2="{base_left + 8}" y2="{base_y - 5}" stroke="white" stroke-width="1.5" opacity="0.12" stroke-linecap="round"/>'
+      <!-- Rim drawn separately on top so it looks clean -->
+      <div style="
+        position:absolute;
+        top:10px; left:0; right:0;
+        width:320px;
+        height:6px;
+        background:#cccccc;
+        border-radius:3px;
+      "></div>
 
-    # Shadow under bowl
-    shadow = f'<ellipse cx="{cx}" cy="{base_y + 14}" rx="95" ry="7" fill="#00000033"/>'
+      <!-- Shadow -->
+      <div style="
+        width:200px; height:10px;
+        background:radial-gradient(ellipse, rgba(0,0,0,0.35) 0%, transparent 70%);
+        margin-top:4px;
+      "></div>
 
-    svg = f'''<svg width="{W}" height="{H}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="{W}" height="{H}" fill="transparent"/>
-      {shadow}
-      {food_poly}
-      {dots}
-      {fill_line}
-      {label}
-      {bowl_outline}
-      {rim}
-      {base}
-      {sheen}
-      {pct_label}
-      {overflow_txt}
-    </svg>'''
+    </div>
+    """
+    return html
 
-    return svg
-
-# ── Display ────────────────────────────────────────────────────────────────────
 st.divider()
 st.subheader(f"{grams}g of {selected_food}")
 
@@ -186,8 +163,8 @@ with m3:
 if overflowing:
     st.warning(f"⚠️ {grams}g of {selected_food} exceeds your {bowl_choice}. Try a larger bowl.")
 
-bowl_svg = draw_bowl(fill_percent, food_color, selected_food, category)
-components.html(bowl_svg, height=300)
+bowl_html = draw_bowl(fill_percent, food_color, selected_food, category)
+components.html(bowl_html, height=280)
 
 with st.expander("How this is calculated"):
     st.write(f"""
